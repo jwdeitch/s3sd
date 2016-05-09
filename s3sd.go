@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/emirozer/go-helpers"
 	"github.com/HouzuoGuo/tiedot/db"
-	"github.com/HouzuoGuo/tiedot/dberr"
+	_ "github.com/HouzuoGuo/tiedot/dberr"
 )
 
 type file struct {
@@ -17,10 +17,16 @@ type file struct {
 }
 
 func main() {
-	scanDir()
+	fileList := scanDir()
+	db, _ := openDb()
+
+	for _, file := range fileList {
+		writeHash(db, file)
+	}
+
 }
 
-func scanDir() {
+func scanDir() *[]file {
 	fileList := []file{}
 	err := filepath.Walk("./", func(path string, f os.FileInfo, err error) error {
 
@@ -34,12 +40,9 @@ func scanDir() {
 		}
 		return nil
 	})
-
 	check(err)
 
-	for _, file := range fileList {
-		fmt.Println(file)
-	}
+	return fileList
 }
 
 func openDb() (*db.Col, error) {
@@ -66,7 +69,7 @@ func openDb() (*db.Col, error) {
 	return err
 }
 
-func writeHashes(file file) {
+func writeHash(db *db.Col, file file) {
 	f, err := os.Create("./s3sd")
 	check(err)
 
