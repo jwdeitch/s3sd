@@ -3,6 +3,7 @@ package main
 import (
 	"path/filepath"
 	"os"
+	"encoding/json"
 	"fmt"
 	"github.com/emirozer/go-helpers"
 	"github.com/HouzuoGuo/tiedot/db"
@@ -18,15 +19,30 @@ type file struct {
 
 func main() {
 	fileList := scanDir()
-	db, _ := openDb()
+	db := openDb()
 
 	for _, file := range fileList {
-		writeHash(db, file)
+		detectChange(db, file)
 	}
 
 }
 
-func scanDir() *[]file {
+func detectChange(s3sdDb *db.Col, file file) {
+	queryResult := make(map[int]struct{}) // query result (document IDs) goes into map keys
+
+	if err := db.EvalQuery(query, feeds, &queryResult); err != nil {
+		panic(err)
+	}
+
+	//if err != nil {
+	//	writeHash(db, file)
+	//}
+	//
+	//fmt.Println(fileInDb)
+
+}
+
+func scanDir() []file {
 	fileList := []file{}
 	err := filepath.Walk("./", func(path string, f os.FileInfo, err error) error {
 
@@ -45,10 +61,8 @@ func scanDir() *[]file {
 	return fileList
 }
 
-func openDb() (*db.Col, error) {
+func openDb() (*db.Col) {
 	myDBDir := "./s3sd"
-	os.RemoveAll(myDBDir)
-	defer os.RemoveAll(myDBDir)
 
 	// (Create if not exist) open a database
 	myDB, err := db.OpenDB(myDBDir)
@@ -57,7 +71,7 @@ func openDb() (*db.Col, error) {
 	}
 
 	// Create collection if not exist
-	if len(myDB.AllCols()) {
+	if len(myDB.AllCols()) > 0 {
 		return myDB.Use("s3sd")
 	} else {
 		if err := myDB.Create("s3sd"); err != nil {
@@ -66,19 +80,21 @@ func openDb() (*db.Col, error) {
 		return myDB.Use("s3sd")
 	}
 
-	return err
+	//return fmt.Errorf("Could not connect to database")
 }
 
-func writeHash(db *db.Col, file file) {
-	f, err := os.Create("./s3sd")
-	check(err)
+func writeHash(s3sdDb *db.Col, file file) {
+	docID, err := s3sdDb.Insert(map[string]interface{}{
+		"md5" : file.md5,
+		"path" : file.path,
+		"size" : file.size,
+		"name" : file.fname})
+	if err != nil {
+		panic(err)
+	}
 
-	defer f.Close()
+	fmt.Println(docID)
 
-	n3, err := f.WriteString("wrdwqdqwdqwdq\n")
-	fmt.Printf("wrote %d bytes\n", n3)
-
-	f.Sync()
 }
 
 func check(e error) {
